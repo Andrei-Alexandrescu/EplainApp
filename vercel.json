@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "mkdir -p dist && echo 'API-only deployment. Build the extension locally.' > dist/index.html",
+  "buildCommand": "mkdir -p dist && cp public/privacy.html dist/privacy.html && echo 'API-only deployment. Build the extension locally.' > dist/index.html",
   "outputDirectory": "dist",
   "functions": {
     "api/explain.ts": {

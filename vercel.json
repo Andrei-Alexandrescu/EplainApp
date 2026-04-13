@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "echo 'Skipping app build on Vercel — only serverless API is deployed. Build the extension locally with npm run build.'",
+  "buildCommand": "mkdir -p dist && echo 'API-only deployment. Build the extension locally.' > dist/index.html",
+  "outputDirectory": "dist",
   "functions": {
     "api/explain.ts": {
       "maxDuration": 60

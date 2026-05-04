@@ -6,13 +6,26 @@
 const pending: string[] = [];
 let mount: ((text: string) => void) | undefined;
 
+function resolveSelectedText(fromContextMenu: string): string {
+  try {
+    const dom = window.getSelection()?.toString() ?? "";
+    const trimmedDom = dom.trim();
+    // `chrome.contextMenus` selectionText can drop/mangle some Unicode math; prefer DOM when it has content.
+    if (trimmedDom.length > 0) return dom;
+    return fromContextMenu;
+  } catch {
+    return fromContextMenu;
+  }
+}
+
 chrome.runtime.onMessage.addListener((request: unknown, _sender, sendResponse) => {
   const msg = request as { type?: string; text?: string };
   if (msg?.type === 'EXPLAIN_TEXT' && typeof msg.text === 'string') {
+    const text = resolveSelectedText(msg.text);
     if (mount) {
-      mount(msg.text);
+      mount(text);
     } else {
-      pending.push(msg.text);
+      pending.push(text);
     }
     sendResponse({ status: 'received' });
   }

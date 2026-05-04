@@ -9,9 +9,23 @@ chrome.runtime.onInstalled.addListener(() => {
 
 type ExplainPayload = { type: "EXPLAIN_TEXT"; text: string };
 
+function messageOptionsForFrame(frameId?: number): { frameId: number } | undefined {
+  // Main frame uses frameId 0 in some APIs, but `tabs.sendMessage` targets the main frame when
+  // `frameId` is omitted. Passing `{ frameId: 0 }` can prevent delivery.
+  if (frameId == null || frameId === 0) return undefined;
+  return { frameId };
+}
+
 async function sendExplainMessage(tabId: number, payload: ExplainPayload, frameId?: number) {
-  const options = frameId != null ? { frameId } : undefined;
-  return chrome.tabs.sendMessage(tabId, payload, options);
+  const opts = messageOptionsForFrame(frameId);
+  try {
+    return await chrome.tabs.sendMessage(tabId, payload, opts);
+  } catch {
+    if (opts) {
+      return await chrome.tabs.sendMessage(tabId, payload, undefined);
+    }
+    throw new Error("sendMessage failed");
+  }
 }
 
 chrome.contextMenus.onClicked.addListener((info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {

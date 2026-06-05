@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import Stripe from "stripe";
 import { checkGate, parseJsonBody, readUserId, setCors } from "../../lib/cors.js";
 import { getStripe, getPriceId, getSiteUrl } from "../../lib/stripe-client.js";
 import type { PlanId } from "../../lib/billing-types.js";
@@ -70,6 +71,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ url: session.url });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "Failed to create checkout session" });
+    const message =
+      e instanceof Stripe.errors.StripeError
+        ? e.message
+        : "Failed to create checkout session";
+    return res.status(500).json({ error: message });
   }
 }

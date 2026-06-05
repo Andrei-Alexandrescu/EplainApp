@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import tailwindCss from '../index.css?inline';
 import { fetchExplanation, type ExplanationLevels } from '../services/ai';
-import { incrementUsage } from '../services/storage';
+import { saveCachedAccount } from '../services/storage';
 
 type LevelId = keyof ExplanationLevels;
 
@@ -32,18 +32,19 @@ function FloatingPopup({ text, onClose }: { text: string; onClose: () => void })
 
   useEffect(() => {
     async function load() {
-      const allowed = await incrementUsage();
-      if (!allowed) {
-        setError("You've reached your daily limit of 10 free explanations. Please upgrade to Pro in the extension settings.");
-        return;
-      }
       try {
         const result = await fetchExplanation(text);
-        if (typeof result === 'string') {
-          setError(result.replace(/\*\*/g, ''));
-        } else {
-          setLevels(result);
+        if (!result.ok) {
+          if (result.usage) await saveCachedAccount(result.usage);
+          setError(
+            result.code === 'LIMIT_REACHED'
+              ? `${result.message} Open the extension popup to upgrade.`
+              : result.message
+          );
+          return;
         }
+        await saveCachedAccount(result.usage);
+        setLevels(result.levels);
       } catch {
         setError('Failed to fetch explanation. Please try again later.');
       }

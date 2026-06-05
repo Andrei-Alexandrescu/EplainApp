@@ -57,9 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       cancel_url: `${site}/billing/cancel.html`,
       client_reference_id: userId,
       metadata: { userId, plan },
-      ...(existing?.stripeCustomerId
-        ? { customer: existing.stripeCustomerId }
-        : { customer_creation: "always" as const }),
+      ...(existing?.stripeCustomerId ? { customer: existing.stripeCustomerId } : {}),
       subscription_data: {
         metadata: { userId, plan },
       },

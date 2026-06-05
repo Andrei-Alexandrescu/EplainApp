@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { checkGate, parseJsonBody, readUserId, setCors } from "../lib/cors.js";
-import { getStripe, getPriceId, getSiteUrl } from "../lib/stripe-client.js";
-import type { PlanId } from "../lib/billing-types.js";
-import { getBillingRecord } from "../lib/billing-store.js";
+import { checkGate, parseJsonBody, readUserId, setCors } from "../../lib/cors.js";
+import { getStripe, getPriceId, getSiteUrl } from "../../lib/stripe-client.js";
+import type { PlanId } from "../../lib/billing-types.js";
+import { getBillingRecord } from "../../lib/billing-store.js";
 
 function isPlan(value: unknown): value is PlanId {
   return value === "weekly" || value === "monthly";

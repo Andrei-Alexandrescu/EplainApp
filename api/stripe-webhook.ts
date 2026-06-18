@@ -76,11 +76,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
         const sub = event.data.object as Stripe.Subscription;
-        let userId =
+        const userId =
           sub.metadata?.userId ?? (await getUserIdForSubscription(sub.id));
         if (!userId) break;
         const priceId = sub.items.data[0]?.price?.id;
-        const plan = priceId ? planFromPriceId(priceId) : undefined;
+        const metadataPlan = sub.metadata?.plan;
+        const plan =
+          (metadataPlan === "weekly" || metadataPlan === "monthly"
+            ? metadataPlan
+            : undefined) ?? (priceId ? planFromPriceId(priceId) : undefined);
         const record = recordFromStripeSubscription(sub, plan ?? undefined);
         if (record) await saveBillingRecord(userId, record);
         break;

@@ -66,6 +66,8 @@ export async function refreshBillingRecordFromStripe(
 
   return existing;
 }
+
+export function planFromPriceId(priceId: string): PlanId | null {
   const weekly = process.env.STRIPE_WEEKLY_PRICE_ID?.trim();
   const monthly = process.env.STRIPE_MONTHLY_PRICE_ID?.trim();
   if (priceId === weekly) return "weekly";

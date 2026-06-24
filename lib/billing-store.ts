@@ -30,6 +30,114 @@ export async function saveBillingRecord(userId: string, record: BillingRecord): 
   await redis.set(subMapKey(record.subscriptionId), userId);
 }
 
+function pendingCheckoutKey(userId: string) {
+  return `checkout:${userId}`;
+}
+
+export async function savePendingCheckout(
+  userId: string,
+  sessionId: string,
+  plan: PlanId
+): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.set(
+    pendingCheckoutKey(userId),
+    JSON.stringify({ sessionId, plan }),
+    { ex: 60 * 60 * 24 }
+  );
+}
+
+async function findActiveSubscriptionForUser(
+  userId: string
+): Promise<Stripe.Subscription | null> {
+  const stripe = getStripe();
+  if (!stripe) return null;
+
+  let startingAfter: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const list = await stripe.subscriptions.list({
+      status: "active",
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    });
+
+    for (const sub of list.data) {
+      if (sub.metadata?.userId === userId) return sub;
+    }
+
+    if (!list.has_more || list.data.length === 0) break;
+    startingAfter = list.data[list.data.length - 1]?.id;
+  }
+
+  return null;
+}
+
+export async function syncBillingFromStripe(
+  userId: string
+): Promise<BillingRecord | null> {
+  const stripe = getStripe();
+  if (!stripe) return null;
+
+  const redis = getRedis();
+  if (redis) {
+    const pendingRaw = await redis.get<string>(pendingCheckoutKey(userId));
+    if (pendingRaw) {
+      try {
+        const pending = JSON.parse(pendingRaw) as { sessionId: string; plan: PlanId };
+        const session = await stripe.checkout.sessions.retrieve(pending.sessionId);
+        if (session.status === "complete" && session.subscription) {
+          const subId =
+            typeof session.subscription === "string"
+              ? session.subscription
+              : session.subscription.id;
+          const sub = await stripe.subscriptions.retrieve(subId);
+          const record = recordFromStripeSubscription(sub, pending.plan);
+          if (record) {
+            await saveBillingRecord(userId, record);
+            await redis.del(pendingCheckoutKey(userId));
+            return record;
+          }
+        }
+      } catch (e) {
+        console.error("Pending checkout sync failed:", e);
+      }
+    }
+  }
+
+  try {
+    const sub = await findActiveSubscriptionForUser(userId);
+    if (sub) {
+      const record = recordFromStripeSubscription(sub);
+      if (record) {
+        await saveBillingRecord(userId, record);
+        return record;
+      }
+    }
+  } catch (e) {
+    console.error("Subscription list sync failed:", e);
+  }
+
+  return null;
+}
+
+export async function resolveBillingRecord(
+  userId: string
+): Promise<BillingRecord | null> {
+  let record = await getBillingRecord(userId);
+  if (isSubscriptionActive(record)) return record;
+
+  if (record?.subscriptionId) {
+    record = (await refreshBillingRecordFromStripe(userId)) ?? record;
+    if (isSubscriptionActive(record)) return record;
+  }
+
+  const synced = await syncBillingFromStripe(userId);
+  if (synced) return synced;
+
+  return record;
+}
+
 export async function getUserIdForSubscription(subscriptionId: string): Promise<string | null> {
   const redis = getRedis();
   if (!redis) return null;

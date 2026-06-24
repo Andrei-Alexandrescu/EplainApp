@@ -15,15 +15,19 @@ export const config = {
   },
 };
 
-async function readRawBody(req: VercelRequest): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let data = "";
+async function readRawBody(req: VercelRequest): Promise<Buffer> {
+  if (Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req.body === "string") return Buffer.from(req.body);
+
+  const chunks: Buffer[] = [];
+  await new Promise<void>((resolve, reject) => {
     req.on("data", (chunk: Buffer | string) => {
-      data += chunk.toString();
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     });
-    req.on("end", () => resolve(data));
+    req.on("end", () => resolve());
     req.on("error", reject);
   });
+  return Buffer.concat(chunks);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -70,7 +74,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             : session.subscription.id;
         const sub = await stripe.subscriptions.retrieve(subId);
         const record = recordFromStripeSubscription(sub, planMeta);
-        if (record) await saveBillingRecord(userId, record);
+        if (record) {
+          await saveBillingRecord(userId, record);
+        } else {
+          console.error("checkout.session.completed: could not build billing record", {
+            userId,
+            subId,
+            priceId: sub.items.data[0]?.price?.id,
+          });
+        }
         break;
       }
       case "customer.subscription.updated":

@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { checkGate, parseJsonBody, readUserId, setCors } from "../../lib/cors.js";
 import { getStripe, getPriceId, getSiteUrl } from "../../lib/stripe-client.js";
 import type { PlanId } from "../../lib/billing-types.js";
-import { getBillingRecord } from "../../lib/billing-store.js";
+import { getBillingRecord, savePendingCheckout } from "../../lib/billing-store.js";
 
 function isPlan(value: unknown): value is PlanId {
   return value === "weekly" || value === "monthly";
@@ -67,6 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!session.url) {
       return res.status(500).json({ error: "Could not create checkout session" });
     }
+
+    await savePendingCheckout(userId, session.id, plan);
 
     return res.status(200).json({ url: session.url });
   } catch (e) {

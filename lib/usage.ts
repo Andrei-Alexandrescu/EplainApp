@@ -1,9 +1,8 @@
 import { getRedis, billingDisabled } from "./redis.js";
 import { FREE_DAILY_LIMIT, type UsageSnapshot } from "./billing-types.js";
 import {
-  getBillingRecord,
   isSubscriptionActive,
-  refreshBillingRecordFromStripe,
+  resolveBillingRecord,
 } from "./billing-store.js";
 
 function todayKey() {
@@ -50,11 +49,8 @@ export async function checkAndConsumeQuota(userId: string): Promise<QuotaResult>
     };
   }
 
-  const record = await getBillingRecord(userId);
-  const refreshed = record?.subscriptionId
-    ? (await refreshBillingRecordFromStripe(userId)) ?? record
-    : record;
-  if (isSubscriptionActive(refreshed)) {
+  const record = await resolveBillingRecord(userId);
+  if (isSubscriptionActive(record)) {
     await incrementDailyUsage(userId);
     return { allowed: true, tier: "pro" };
   }
@@ -77,10 +73,7 @@ export async function getUsageAfterExplain(userId: string) {
 }
 
 export async function buildUsageSnapshot(userId: string): Promise<UsageSnapshot> {
-  let record = await getBillingRecord(userId);
-  if (record?.subscriptionId) {
-    record = (await refreshBillingRecordFromStripe(userId)) ?? record;
-  }
+  const record = await resolveBillingRecord(userId);
   const active = isSubscriptionActive(record);
   const dailyUses = await getDailyUsage(userId);
 
